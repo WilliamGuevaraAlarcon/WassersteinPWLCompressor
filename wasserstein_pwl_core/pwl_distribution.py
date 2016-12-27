@@ -132,8 +132,8 @@ class PiecewiseLinearDistribution:
         #augment P and X in order to ensure that 0,1 are elements of P
         #If they are redundandt we take rid of them next
 
-        if np.any(P < 0) or np.any(P > 1):
-            raise Exception('Error on CDF values: Probabilities should be in [0,1]')
+        #if np.any(P < 0) or np.any(P > 1):
+        #    raise Exception('Error on CDF values: Probabilities should be in [0,1]')
 
         if (P[0] > FStartEndTolerance) or (P[-1] < 1-FStartEndTolerance): #P[-1] = P(end)
             raise Exception('Start and end value for Fvalues should be close to 0 and 1')
@@ -211,6 +211,10 @@ class PiecewiseLinearDistribution:
           Y.quantile([0:0.1:1]')
         """
         return LinearInterpolation(P, self.Fvalues, self.Xvalues, DiscontinuitiesBehaviour = 'LeftContinuous')
+
+    def inverse(self):
+
+        return PiecewiseLinearDistribution(self.Fvalues, self.quantile(self.Fvalues))
 
 
     def rnd(self, n = 1):
