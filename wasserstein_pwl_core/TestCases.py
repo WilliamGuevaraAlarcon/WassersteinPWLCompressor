@@ -4,6 +4,7 @@ import numpy as np
 from wasserstein_pwl_core.compressor import PWLcompressor
 from wasserstein_pwl_core.pwl_distribution import PiecewiseLinearDistribution, EmpiricalDistributionFromSample, LinearInterpolation
 from wasserstein_pwl_core.sample_characteristics import SampleCharacteristics
+from wasserstein_pwl_core.segment_stack import SegmentStack
 
 # ## INPUT Sample and segment to be bisected based on OLS criterium
 # Sample = [1, 1.6, 4.3, 4.6, 6, 7.1, 13, 13.4, 16, 18.8]
@@ -11,83 +12,80 @@ from wasserstein_pwl_core.sample_characteristics import SampleCharacteristics
 # SegmentEnd = 7
 
 def RunAllTestCases():
-    RunTestCases_SampleCharacteristics()
+    #RunTestCases_SegmentStack()
+    #RunTestCases_AtomOnEnforcedQuantile()
     RunTestCasesOLSCutPoint()
     print("All Test Cases successfully completed")
 
-def RunTestCases_SampleCharacteristics():
-    # testcases taken from excel sheet calculations
+def RunTestCases_SegmentStack():
+    """
+    Example: if Sample = [ 24.  ,  26.75,  27.4 ,  27.45,  30, 30, 30, 30, 30, 30, 30.15,  30.5 ,  31.45,  32.7 ,  33.8 ]
+    SS = SegmentStack(SubsampleApproximation([ 24.  ,  26.75,  27.4 ,  27.45,  30, 30, 30, 30, 30, 30, 30.15,  30.5 ,  31.45,  32.7 ,  33.8 ]),
+                                              AtomDetection = (10, 0.1))
+    gives
+    SS.Stack = [Segment(0,3), Segment(4,9), Segment(10,14)]
 
-    Sample = [24., 26.75, 27.4, 27.45, 30, 30, 30, 30, 30, 30, 30.15, 30.5, 31.45, 32.7, 33.8]
+    The two options AtomDetection = True and AtomDetection = (10, 0.1) are tested. The first one does not lead to atom
+    detection in this case because the sample size is too small for it
+    """
+    #          0        1       2       3      4   5   6   7   8   9   10      11      12      13      14
+    Sample = [ 24.,  26.75,  27.4 ,  27.45,  30, 30, 30, 30, 30, 30, 30.15,  30.5 ,  31.45,  32.7 ,  33.8 ]
+    SC = SampleCharacteristics(Sample)
+    SS1 = SegmentStack(SC, AtomDetection = True)
+    SS2 = SegmentStack(SC, AtomDetection = (10, 0.1))
 
-    def Characteristics(Sol):
-        LoMin = Sol.Calculate_StartXFromDelta(Sol.Delta_UpperBound)
-        LoReg = Sol.Calculate_StartXFromDelta(Sol.Delta_Regression)
-        LoMax = Sol.Calculate_StartXFromDelta(Sol.Delta_LowerBound)
-        UpMin = Sol.Calculate_EndXFromDelta(Sol.Delta_LowerBound)
-        UpReg = Sol.Calculate_EndXFromDelta(Sol.Delta_Regression)
-        UpMax = Sol.Calculate_EndXFromDelta(Sol.Delta_UpperBound)
-        BisecPt = Sol.BestBisectionPoint
-        return dict(LoMin = LoMin, LoReg = LoReg, LoMax = LoMax, UpMin = UpMin, UpReg = UpReg, UpMax = UpMax, BisecPt = BisecPt)
+    assert (len(SS2.Stack) == 3)
+    for i in range(3):
+        SI = SS2.Stack.pop()
+        assert( SI.SampleSet_Start in [0,4,10] )
+        assert( SI.SampleSet_End in [3,9,14] )
 
-    def CompareCharacteristics(eps, CA, CB):
-        for key in CA:
-            if abs(CA[key]-CB[key]) > eps:
-                print('Values differ for '+key+': '+str(CA[key])+' , '+str(CB[key]))
+    assert (len(SS1.Stack) == 1)
+    SI = SS1.Stack.pop()
+    assert (SI.SampleSet_Start == 0)
+    assert (SI.SampleSet_End == 14)
 
-    epsilon = 0.001
+def RunTestCases_AtomOnEnforcedQuantile():
+    # ensure that an enforced quantile on an atom is removed from the solution. the point is redundant.
+    # I.e., the result of this compression should be  [0.333, 4.333, 5.0, 5.0, 6.666, 12],   [0.0, 0.3, 0.3, 0.7, 0.7, 1.0]
+    # and NOT  [0.333, 4.333, 5.0, 5.0, 5.0, 6.666, 12],   [0.0, 0.3, 0.3, 0.5, 0.7, 0.7, 1.0]
+    Sample = [1, 2, 4, 5 , 5, 5, 5, 7, 10, 11]
+    Accuracy = 0.3
+    CompressedSample = PWLcompressor(Sample, Accuracy = Accuracy,
+                                     AtomDetection= (10, 0.1),
+                                     EnforcedInterpolationQuantiles=[0.5])
+    PWL = CompressedSample.Result
+    AssertListsAreAlmostEqual(PWL['PWLX'],[0.333, 4.333, 5.0, 5.0, 6.666, 12.0], 1e-3 )
+    AssertListsAreAlmostEqual(PWL['PWLY'],[0.0, 0.3, 0.3, 0.7, 0.7, 1.0], 1e-6 )
 
-    SA = SampleCharacteristics(Sample, Accuracy = 0.1)
-    Sol = SA.FindBestSolutionLine(10,14)
-    ReferenceChar = dict(LoMin = 28.6358, LoReg = 29.4400, LoMax = 29.6433, UpMin = 33.7967, UpReg = 34.0000, UpMax = 34.8042, BisecPt = 12)# From Excel Testcase Generator
-    CompareCharacteristics(epsilon,Characteristics(Sol),ReferenceChar)
-
-    SA = SampleCharacteristics(Sample, Accuracy = 0.1)
-    Sol = SA.FindBestSolutionLine(6,11)
-    ReferenceChar = dict(LoMin = 29.1637, LoReg = 29.8625, LoMax = 30.1083, UpMin = 30.1083, UpReg = 30.3542, UpMax = 31.0530, BisecPt = 10)# From Excel Testcase Generator
-    CompareCharacteristics(epsilon,Characteristics(Sol),ReferenceChar)
-
-    SA = SampleCharacteristics(Sample, Accuracy = 0.1)
-    Sol = SA.FindBestSolutionLine(0,3)
-    ReferenceChar = dict(LoMin = 23.5747, LoReg = 24.3375, LoMax = 23.9484, UpMin = 28.8516, UpReg = 28.4625, UpMax = 29.2253, BisecPt = 0)# From Excel Testcase Generator
-    CompareCharacteristics(epsilon,Characteristics(Sol),ReferenceChar)
-
-    SA = SampleCharacteristics(Sample, Accuracy = 0.1)
-    Sol = SA.FindBestSolutionLine(7,12)
-    ReferenceChar = dict(LoMin = 29.0060, LoReg = 29.6083, LoMax = 30.1232, UpMin = 30.5768, UpReg = 31.0917, UpMax = 31.6940, BisecPt = 11)# From Excel Testcase Generator
-    CompareCharacteristics(epsilon,Characteristics(Sol),ReferenceChar)
-
-    SA = SampleCharacteristics(Sample, Accuracy = 0.01)
-    Sol = SA.FindBestSolutionLine(11,13)
-    ReferenceChar = dict(LoMin = 29.8384, LoReg = 30.0833, LoMax = 29.9341, UpMin = 33.1659, UpReg = 33.0167, UpMax = 33.2617, BisecPt = 12)# From Excel Testcase Generator
-    CompareCharacteristics(epsilon,Characteristics(Sol),ReferenceChar)
 
 def RunTestCasesOLSCutPoint():
 
-    Sample = [1, 1.6, 4.3, 4.6, 6, 7.1, 13, 13.4, 16, 18.8]
-    SegmentStart = 0
-    SegmentEnd = 9
-    #Original OptimalCutIndex was one integer bigger, i.e. OptimalCutIndex + 1
-    #OptimalCutIndex = 6
-    OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
-    assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
-    SegmentStart = 3
-    SegmentEnd = 7
-    #OptimalCutIndex = 6
-    OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
-    assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
-
-    SegmentStart = 6
-    SegmentEnd = 9
-    #OptimalCutIndex = 8
-    OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
-    assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
-
-    SegmentStart = 0
-    SegmentEnd = 5
-    #OptimalCutIndex = 2
-    OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
-    assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
+    # Sample = [1, 1.6, 4.3, 4.6, 6, 7.1, 13, 13.4, 16, 18.8]
+    # SegmentStart = 0
+    # SegmentEnd = 9
+    # #Original OptimalCutIndex was one integer bigger, i.e. OptimalCutIndex + 1
+    # #OptimalCutIndex = 6
+    # OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
+    # assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
+    #
+    # SegmentStart = 3
+    # SegmentEnd = 7
+    # #OptimalCutIndex = 6
+    # OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
+    # assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
+    #
+    # SegmentStart = 6
+    # SegmentEnd = 9
+    # #OptimalCutIndex = 8
+    # OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
+    # assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
+    #
+    # SegmentStart = 0
+    # SegmentEnd = 5
+    # #OptimalCutIndex = 2
+    # OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
+    # assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
 
     # ----------------
     Sample = [1.0, 1.1, 1.2, 1.6, 4.3, 4.5, 4.6, 6, 6.1, 6.6,
@@ -98,6 +96,7 @@ def RunTestCasesOLSCutPoint():
     OptimalCutIndex = SampleCharacteristics(Sample).FindBestSolutionLine(SegmentStart, SegmentEnd, Bisection = "OLS").BestBisectionPoint
     assert(FindOLSOptimalCutpoint(Sample, SegmentStart, SegmentEnd) == OptimalCutIndex)
 
+    App = PWLcompressor(Sample, Accuracy = 1, PlotIntermediate=True)
     SegmentStart = 0
     SegmentEnd = 10
     #OptimalCutIndex = 4

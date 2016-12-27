@@ -147,11 +147,6 @@ class SampleCharacteristics:
                      + 2*(delta1alt*mu1alt*(Zet + SampleSet_Start) + delta2alt*mu2alt*(Zet + SampleSet_End + 1))
                      - 4*(delta1alt*Regression_PartialSum1/(Zet - SampleSet_Start) + delta2alt*Regression_PartialSum2/(SampleSet_End + 1 -Zet)))
 
-                #D1 = - (1/self.SampleSize)*(mu1**2*(Zet - SampleSet_Start) + mu2**2*(SampleSet_End + 1 - Zet))
-                #D2 = (1 / self.SampleSize) * (1/3*(delta1**2 *(Zet - SampleSet_Start) + delta2**2*(SampleSet_End + 1 - Zet)))
-                #D3 =  (1/self.SampleSize)*2*(delta1*mu1*(Zet + SampleSet_Start) + delta2*mu2*(Zet + SampleSet_End + 1))
-                #D4 = (-4/self.SampleSize)*(delta1*Part_RegCumSum1/(Zet - SampleSet_Start) + delta2*Part_RegCumSum2/(SampleSet_End + 1 -Zet))
-
                 MinIndex = np.argmin(D)
                 BestBisectionPoint =  SampleSet_Start + MinIndex
 
