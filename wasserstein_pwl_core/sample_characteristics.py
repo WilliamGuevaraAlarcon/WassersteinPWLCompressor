@@ -76,6 +76,7 @@ class SampleCharacteristics:
     def LocalMean(self, SampleSet_Start, SampleSet_End):
         return (self.CumSum_Sample[SampleSet_End] - self.CumSum_Sample_m1(SampleSet_Start))/(SampleSet_End + 1 - SampleSet_Start)
 
+    #Delta methods
     def CalculateRegressionDelta(self,SampleSet_Start, SampleSet_End):
         LocalMean = self.LocalMean(SampleSet_Start, SampleSet_End)
         Y_Right = (SampleSet_End+1)/self.SampleSize
@@ -85,14 +86,70 @@ class SampleCharacteristics:
         Delta_Regression = Regression_Delta_Part1 + Regression_Delta_Part2
         return Delta_Regression
 
-    def CalculateWassersteinDelta(self,SampleSet_Start, SampleSet_End):
-        LocalMean = self.LocalMean(SampleSet_Start, SampleSet_End)
-        Y_Right = (SampleSet_End+1)/self.SampleSize
-        Y_Left = SampleSet_Start/self.SampleSize
-        Regression_Delta_Part1 = -3*LocalMean*(Y_Right+Y_Left)/(Y_Right-Y_Left)
-        Regression_Delta_Part2 = 6/((self.SampleSize*(Y_Right-Y_Left))**2)*self.Regression_PartialSum(SampleSet_Start, SampleSet_End)
-        Delta_Regression = Regression_Delta_Part1 + Regression_Delta_Part2
-        return Delta_Regression
+
+
+    #Bisection methods
+    def BisectionOLS(self, SampleSet_Start, SampleSet_End, SegmentSize):
+        SubsetSum = self.CumSum_Sample[SampleSet_End] - self.CumSum_Sample_m1(SampleSet_Start)
+        mu1alt = self.CumSum_Sample[SampleSet_Start:SampleSet_End] - self.CumSum_Sample_m1(SampleSet_Start)
+        mu2alt = SubsetSum - mu1alt
+        LeftSegmentLength = np.linspace(1, SegmentSize - 1, SegmentSize - 1)
+        mu1alt /= LeftSegmentLength
+        mu2alt /= (SegmentSize - LeftSegmentLength)
+
+        Y_Left1 = SampleSet_Start / self.SampleSize
+        Y_Right1 = Y_Left1 + LeftSegmentLength / self.SampleSize
+        Y_Left2 = Y_Right1
+        Y_Right2 = (SampleSet_End + 1) / self.SampleSize
+
+        Regression_PartialSum1 = self.Regression_Cumsum[SampleSet_Start:SampleSet_End].copy()
+        Regression_PartialSum2 = self.Regression_Cumsum[SampleSet_End] - Regression_PartialSum1
+        if SampleSet_Start > 0:
+            Regression_PartialSum1 -= self.Regression_Cumsum[SampleSet_Start - 1]
+
+        delta1alt = -3 * mu1alt * (Y_Right1 + Y_Left1) / (Y_Right1 - Y_Left1) + 6 / (
+        (self.SampleSize * (Y_Right1 - Y_Left1)) ** 2) * Regression_PartialSum1
+        delta2alt = -3 * mu2alt * (Y_Right2 + Y_Left2) / (Y_Right2 - Y_Left2) + 6 / (
+        (self.SampleSize * (Y_Right2 - Y_Left2)) ** 2) * Regression_PartialSum2
+
+        Zet = self.IncreasingIntegers[SampleSet_Start + 1: SampleSet_End + 1]
+        D = (1 / self.SampleSize) * (
+        1 / 3 * (delta1alt ** 2 * (Zet - SampleSet_Start) + delta2alt ** 2 * (SampleSet_End + 1 - Zet))
+        - (mu1alt ** 2 * (Zet - SampleSet_Start) + mu2alt ** 2 * (SampleSet_End + 1 - Zet))
+        + 2 * (delta1alt * mu1alt * (Zet + SampleSet_Start) + delta2alt * mu2alt * (Zet + SampleSet_End + 1))
+        - 4 * (delta1alt * Regression_PartialSum1 / (Zet - SampleSet_Start) + delta2alt * Regression_PartialSum2 / (SampleSet_End + 1 - Zet)))
+
+        MinIndex = np.argmin(D)
+        return (SampleSet_Start + MinIndex)
+
+    def BisectionOriginal(self, SampleSet_Start, SampleSet_End, SegmentSize, LocalMean, Delta_Regression):
+        PartialSumPart = self.CumSum_Sample[SampleSet_Start:SampleSet_End + 1] - self.CumSum_Sample_m1(SampleSet_Start)
+        LowerIntegralSum = (self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[
+            SampleSet_Start] + 1)  # cumsum(np.ones(SampleSet_End - SampleSet_Start + 1))
+        MeanIntegralPart = LowerIntegralSum * LocalMean
+        NonEpsilonPart = PartialSumPart - MeanIntegralPart
+        Ineq_Middle = (
+        (self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[SampleSet_Start] + 1) *
+        (self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[
+            SampleSet_End]) / SegmentSize)
+        IntegralDiffWithRegressionDelta = np.abs(Delta_Regression * Ineq_Middle - NonEpsilonPart)
+
+        MaxIndex = np.argmax(IntegralDiffWithRegressionDelta)
+        return (SampleSet_Start + MaxIndex)
+
+    # def BisectionWasserstein(self, SampleSet_Start, SampleSet_End):
+    #     Zet = self.IncreasingIntegers[SampleSet_Start + 1: SampleSet_End + 1]
+    #     res = []
+    #     for z in Zet:
+    #         res.append(sum(np.abs(self.Sample[SampleSet_Start:z] -
+    #                               (self.LocalMean(SampleSet_Start, z) + self.CalculateRegressionDelta(SampleSet_Start,
+    #                                                                                                   z) * (
+    #                                2 * (z - 1 / 2 - SampleSet_Start) / (
+    #                                    z + 1 - SampleSet_Start) - 1))) / self.SampleSize))
+    #
+    #     MinIndex = np.argmin(res)
+    #
+    #     return (MinIndex + SampleSet_Start)
 
     def FindBestSolutionLine(self, SampleSet_Start, SampleSet_End, Bisection = 'Original'):
 
@@ -104,9 +161,7 @@ class SampleCharacteristics:
                 SampleSize              = self.SampleSize,
                 Mean                    = self.Sample[SampleSet_Start],
                 Delta_Regression        = 0.0,
-                BestBisectionPoint      = None,
-                Bisectable              = False
-            )
+                BestBisectionPoint      = None)
         else: # subsample has size larger than one and is not jump
             # StartTime = clock()
 
@@ -116,73 +171,22 @@ class SampleCharacteristics:
 
             # calculate regression delta
             Delta_Regression = self.CalculateRegressionDelta(SampleSet_Start, SampleSet_End)
-            #Delta_Regression = self.CalculateWassersteinDelta(SampleSet_Start, SampleSet_End) TODO Program other delta option
+            #Delta_Regression = self.CalculateMinWassersteinDelta(SampleSet_Start, SampleSet_End)
 
             ######################New Bisection
             if Bisection == 'OLS':
-                ###############
-                SubsetSum = self.CumSum_Sample[SampleSet_End] - self.CumSum_Sample_m1(SampleSet_Start)
-                mu1alt = self.CumSum_Sample[SampleSet_Start:SampleSet_End] - self.CumSum_Sample_m1(SampleSet_Start)
-                mu2alt = SubsetSum - mu1alt
-                LeftSegmentLength = np.linspace(1,SegmentSize-1,SegmentSize-1)
-                mu1alt /= LeftSegmentLength
-                mu2alt /= (SegmentSize - LeftSegmentLength)
-
-                Y_Left1 = SampleSet_Start/self.SampleSize
-                Y_Right1 = Y_Left1 + LeftSegmentLength/self.SampleSize
-                Y_Left2 = Y_Right1
-                Y_Right2 = (SampleSet_End+1)/self.SampleSize
-
-                Regression_PartialSum1 = self.Regression_Cumsum[SampleSet_Start:SampleSet_End].copy()
-                Regression_PartialSum2 = self.Regression_Cumsum[SampleSet_End] - Regression_PartialSum1
-                if SampleSet_Start > 0:
-                    Regression_PartialSum1 -= self.Regression_Cumsum[SampleSet_Start - 1]
-
-                delta1alt = -3*mu1alt*(Y_Right1+Y_Left1)/(Y_Right1-Y_Left1) + 6/((self.SampleSize*(Y_Right1-Y_Left1))**2)*Regression_PartialSum1
-                delta2alt = -3*mu2alt*(Y_Right2+Y_Left2)/(Y_Right2-Y_Left2) + 6/((self.SampleSize*(Y_Right2-Y_Left2))**2)*Regression_PartialSum2
-
-                Zet = self.IncreasingIntegers[SampleSet_Start + 1: SampleSet_End + 1]
-                D = (1/self.SampleSize)*(1/3*(delta1alt**2*(Zet-SampleSet_Start) + delta2alt**2*(SampleSet_End+1-Zet))
-                     - (mu1alt**2*(Zet - SampleSet_Start) + mu2alt**2*(SampleSet_End + 1 - Zet))
-                     + 2*(delta1alt*mu1alt*(Zet + SampleSet_Start) + delta2alt*mu2alt*(Zet + SampleSet_End + 1))
-                     - 4*(delta1alt*Regression_PartialSum1/(Zet - SampleSet_Start) + delta2alt*Regression_PartialSum2/(SampleSet_End + 1 -Zet)))
-
-                MinIndex = np.argmin(D)
-                BestBisectionPoint =  SampleSet_Start + MinIndex
+                BestBisectionPoint = self.BisectionOLS(SampleSet_Start, SampleSet_End, SegmentSize)
 
             if Bisection == 'Original':
-                PartialSumPart = self.CumSum_Sample[SampleSet_Start:SampleSet_End + 1] - self.CumSum_Sample_m1(SampleSet_Start)
-                LowerIntegralSum = (self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[SampleSet_Start] + 1)  # cumsum(np.ones(SampleSet_End - SampleSet_Start + 1))
-                MeanIntegralPart = LowerIntegralSum * LocalMean
-                NonEpsilonPart = PartialSumPart - MeanIntegralPart
-                Ineq_Middle = ((self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[SampleSet_Start] + 1) *
-                           (self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[SampleSet_End]) / SegmentSize)
-                IntegralDiffWithRegressionDelta = np.abs(Delta_Regression * Ineq_Middle - NonEpsilonPart)
+                BestBisectionPoint = self.BisectionOriginal(SampleSet_Start, SampleSet_End, SegmentSize, LocalMean, Delta_Regression)
 
-                MaxIndex = np.argmax(IntegralDiffWithRegressionDelta)
-                BestBisectionPoint = SampleSet_Start + MaxIndex
-
-            if Bisection == 'Wasserstein_low':
-                Zet = self.IncreasingIntegers[SampleSet_Start + 1: SampleSet_End + 1]
-                res = []
-                for z in Zet:
-                    res.append(sum(np.abs(self.Sample[SampleSet_Start:z] -
-                              (self.LocalMean(SampleSet_Start, z) + self.CalculateRegressionDelta(SampleSet_Start, z) * (2 * (z - 1/2 - SampleSet_Start) / (
-                                                                  z + 1 - SampleSet_Start) - 1))) / self.SampleSize))
-
-                MinIndex = np.argmin(res)
-
-                BestBisectionPoint = MinIndex + SampleSet_Start
-
+            # if Bisection == 'Wasserstein_low':
+            #     BestBisectionPoint = self.BisectionWasserstein(SampleSet_Start, SampleSet_End)
             #MinimumDifference = IntegralDiffWithRegressionDelta[MinIndex]/self.SampleSize
 
             # EndTime = clock()
             # print('Time required for Analysis of sement from '+str(SampleSet_Start)+' to '+str(SampleSet_End)+': '+str(EndTime-StartTime)+' seconds')
 
-
-            #if (SampleSet_End > SampleSet_Start) and (BestBisectionPoint is not None):
-            if (SampleSet_End > SampleSet_Start) and (BestBisectionPoint is not None) and (Delta_Regression > 0.0):
-                Bisectable = True
 
 
 
@@ -193,8 +197,4 @@ class SampleCharacteristics:
                 Mean                    = LocalMean,
                 Delta_Regression        = Delta_Regression,
                 BestBisectionPoint      = BestBisectionPoint,
-                Bisectable              = Bisectable,
-                Sample                  = self.Sample  )
-
-
-
+                Sample                  = self.Sample)

@@ -8,7 +8,6 @@ class SegmentStack:
 
     Stack               = None
     verbose             = False
-    TotalWasserstein    = 0.0
     #minimum sample size such that atom detection is applied
     AtomDetectionMinimumSampleSize = 1000# 1000
 
@@ -70,19 +69,14 @@ class SegmentStack:
         if RemoveNegativeJumps:
             self.CorrectNegativeIncrements(SampleStats.Sample)
 
-        self.SetTotalWasserstein()
-
-    def SetTotalWasserstein(self):
-        self.TotalWasserstein = sum(Segment.WassersteinDistance for Segment in self.Stack)
+    def TotalWasserstein(self):
+        return sum(Segment.WassersteinDistance for Segment in self.Stack)
 
     def StackLength(self):
         return len(self.Stack)
 
     def isNotEmpty(self):
-        if self.Stack:
-            return True
-        else:
-            return False
+        return bool(self.Stack)
 
     def isEmpty(self): #
         return not self.isNotEmpty()
@@ -106,20 +100,19 @@ class SegmentStack:
             Epsilon = 1e-9
             for i in range(self.StackLength() - 1):
                 AbsoluteEpsilon = abs(self.Stack[i + 1].Segment_Line_Start_X) * Epsilon
-                if (((self.Stack[i].SampleSet_End + 1) == self.Stack[i + 1].SampleSet_Start) &  # end-y and start-y are equal, i.e. segments attach
-                     (self.Stack[i + 1].Segment_Line_Start_X - self.Stack[i].Segment_Line_End_X < -AbsoluteEpsilon)):  # there is a negative jump in the x-coordinate, which is not allowed for cdf's
+                if (self.Stack[i + 1].Segment_Line_Start_X - self.Stack[i].Segment_Line_End_X < -AbsoluteEpsilon):  # there is a negative jump in the x-coordinate, which is not allowed for cdf's
                     self.CorrectSegments(self.Stack[i], self.Stack[i+1], Sample)
 
     def CorrectSegments(self, Seg_Down, Seg_Up, Sample):
 
-        if Seg_Down.Bisectable == True and Seg_Up.Bisectable == True:
+        if Seg_Down.isBisectable() == True and Seg_Up.isBisectable() == True:
             ConnectingPoint = (Seg_Up.Segment_Line_Start_X + Seg_Down.Segment_Line_End_X) / 2.0
             ConnectingPoint = max(ConnectingPoint, Seg_Down.Mean)
             Seg_Down.SetDelta(Seg_Down.Calculate_DeltaFromEndX(ConnectingPoint), Sample)
             Seg_Up.SetDelta(Seg_Up.Calculate_DeltaFromStartX(ConnectingPoint), Sample)
-        elif Seg_Down.Bisectable == True and Seg_Up.Bisectable == False:
+        elif Seg_Down.isBisectable() == True and Seg_Up.isBisectable() == False:
             Seg_Down.SetDelta(Seg_Down.Calculate_DeltaFromEndX(Seg_Up.Segment_Line_Start_X), Sample)
-        elif Seg_Down.Bisectable == False and Seg_Up.Bisectable == True:
+        elif Seg_Down.isBisectable() == False and Seg_Up.isBisectable() == True:
             Seg_Up.SetDelta(Seg_Up.Calculate_DeltaFromStartX(Seg_Down.Segment_Line_End_X), Sample)
         else:  # this should never happen...
             raise Exception('Adjacent solutions are incompatible, but neither is bisectable.')
@@ -137,14 +130,17 @@ class SegmentStack:
                 return False
         return True
 
-    def BisectBiggestWasserstein(self):
+    def BisectBiggestWasserstein(self, SampleStats, Bisection):
         """
         return the bisected segment where the Wasserstein distance is biggest
         """
         i_to_pop = max(enumerate(self.Stack), key = lambda x: x[1].WassersteinDistance)[0]
         if i_to_pop == None:
-            raise Exception("No Bisectable Interval left, accuracy can£t be reached")
+            raise Exception("No Bisectable Interval left, accuracy can't be reached")
 
-        return self.Stack.pop(i_to_pop).Bisect()
+        LeftSegment, RightSegment = self.Stack.pop(i_to_pop).Bisect(SampleStats, Bisection)
+        self.append(LeftSegment)
+        self.append(RightSegment)
+
 
 

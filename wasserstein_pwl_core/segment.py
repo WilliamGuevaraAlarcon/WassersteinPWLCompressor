@@ -11,7 +11,7 @@ class Segment:
     Delta_Regression        = 0.0
     Delta_Selected          = None
     BestBisectionPoint      = None
-    Bisectable            = None
+
 
     Segment_Line_Start_Y = 0.0
     Segment_Line_End_Y   = 0.0
@@ -25,7 +25,6 @@ class Segment:
                  SampleSize                     = 0,
                  Mean                           = 0.0,
                  Delta_Regression               = 0.0,
-                 Bisectable                     = None,
                  BestBisectionPoint             = None,
                  Sample                         = None):
 
@@ -35,9 +34,15 @@ class Segment:
         self.Mean               = Mean
         self.Delta_Regression   = Delta_Regression
         self.BestBisectionPoint = BestBisectionPoint
-        self.Bisectable         = Bisectable
+        self.DeltaMultiplier    = (2 * (np.linspace(self.SampleSet_Start + 1 / 2, self.SampleSet_End + 1 / 2, self.SampleSet_End + 1 - self.SampleSet_Start) - self.SampleSet_Start) / (self.SampleSet_End + 1 - self.SampleSet_Start) - 1)
+        if Sample is not None:
+            self.SubSample =  Sample[self.SampleSet_Start:self.SampleSet_End + 1]
 
         self.SetDelta(Delta_Regression, Sample)
+
+
+        #if Sample is not None:
+        #    self.SubSample      = Sample[self.SampleSet_Start:self.SampleSet_End + 1]
 
     def Size(self):
         return self.SampleSet_End - self.SampleSet_Start + 1
@@ -46,18 +51,17 @@ class Segment:
     def SetDelta(self, Delta, Sample):
         self.Delta_Selected = max(0.0, Delta)
         self.SetPWLCoordinates()
-        self.SetWasserstein(Sample)
+        self.SetWasserstein()
 
-    def SetWasserstein(self, Sample):
-        if self.Bisectable == False:
+    def SetWasserstein(self):
+        if self.isBisectable() == False:
             if self.Segment_Line_Start_X == self.Segment_Line_End_X and self.Segment_Line_Start_X == self.Mean:
                 self.WassersteinDistance = 0
             else:
                 raise Exception('Constant segment with no zero Wasserstein')
         else:
-            self.WassersteinDistance = sum(np.abs(Sample[self.SampleSet_Start:self.SampleSet_End + 1] -
-                       (self.Mean + self.Delta_Selected * (2 * (np.linspace(self.SampleSet_Start + 1 / 2, self.SampleSet_End + 1 / 2, self.SampleSet_End + 1 - self.SampleSet_Start) -
-                                                                self.SampleSet_Start) / (self.SampleSet_End + 1 - self.SampleSet_Start) - 1))) / self.SampleSize)
+            ApproxDiff = self.SubSample - self.Mean - self.Delta_Selected * self.DeltaMultiplier
+            self.WassersteinDistance     = np.sum(np.abs(ApproxDiff)) / self.SampleSize
 
         #Condition_X = self.Sample[SampleSet_Start:SampleSet_End] - LocalMean + Delta*((SampleSet_End + 1 + SampleSet_Start) / (SampleSet_End + 1 - SampleSet_Start))
         #Condition_S_start = (2 * Delta * self.IncreasingIntegers[SampleSet_Start:SampleSet_End]) / (SampleSet_End + 1 - SampleSet_Start)
@@ -80,16 +84,14 @@ class Segment:
 
     def isBisectable(self):
         # returns true if it can be bisected
-        if (self.SampleSet_End > self.SampleSet_Start) and (self.BestBisectionPoint is not None) and (self.Delta_Regression > 0.0):
-            return True
-        else:
-            return False
+        return bool(self.SampleSet_End > self.SampleSet_Start) and (self.BestBisectionPoint is not None) and (self.Delta_Regression > 0.0)
 
-    def Bisect(self):
+    def Bisect(self, SampleStats, Bisection):
         # BisectionPoint = int(round((self.SampleSet_Start + self.SampleSet_End)/2.0)) #alternative: take the middle!
-        LeftInterval  = ProblemInterval(self.SampleSet_Start, self.BestBisectionPoint)
-        RightInterval = ProblemInterval(self.BestBisectionPoint +1, self.SampleSet_End)
-        return [LeftInterval, RightInterval]
+        LeftSegment  = SampleStats.FindBestSolutionLine(self.SampleSet_Start, self.BestBisectionPoint, Bisection)
+        RightSegment = SampleStats.FindBestSolutionLine(self.BestBisectionPoint + 1, self.SampleSet_End, Bisection)
+
+        return [LeftSegment, RightSegment]
 
     def SetPWLCoordinates(self):
         self.Segment_Line_Start_Y = self.SampleSet_Start/self.SampleSize
@@ -108,10 +110,3 @@ class Segment:
 
     def Calculate_DeltaFromStartX(self,StartX):
         return self.Mean - StartX
-
-class ProblemInterval:
-    SampleSet_Start = None
-    SampleSet_End   = None
-    def __init__(self, Start, End):
-        self.SampleSet_Start = Start
-        self.SampleSet_End = End

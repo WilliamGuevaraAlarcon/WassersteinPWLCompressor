@@ -63,24 +63,18 @@ class PWLcompressor:
         if PlotIntermediate:
             Temp_Result = self.GivePWLPoints()
             self.plotIntermediate(Temp_Result, color='b')
-        print("Wasserstein=", self.SegmentStack.TotalWasserstein)
+        print("Wasserstein=", self.SegmentStack.TotalWasserstein())
 
-        while self.SegmentStack.TotalWasserstein > Accuracy:
-            LeftSegment, RightSegment = self.SegmentStack.BisectBiggestWasserstein()
-
-
-            self.SegmentStack.append(self.SampleStats.FindBestSolutionLine(LeftSegment.SampleSet_Start, LeftSegment.SampleSet_End, Bisection))
-            self.SegmentStack.append(self.SampleStats.FindBestSolutionLine(RightSegment.SampleSet_Start, RightSegment.SampleSet_End, Bisection))
+        while self.SegmentStack.TotalWasserstein() > Accuracy:
+            self.SegmentStack.BisectBiggestWasserstein(SampleStats = self.SampleStats, Bisection = Bisection)
 
             if RemoveNegativeJumps:
                 self.SegmentStack.CorrectNegativeIncrements(self.SampleStats.Sample)
 
-            self.SegmentStack.SetTotalWasserstein()
-
             Temp_Result = self.GivePWLPoints()
             if PlotIntermediate:
                 self.plotIntermediate(Temp_Result, color='b')
-            print("Wasserstein=", self.SegmentStack.TotalWasserstein)
+            print("Wasserstein=", self.SegmentStack.TotalWasserstein())
 
         self.SegmentStack.CheckCompletenessOfStack()
 
@@ -91,7 +85,7 @@ class PWLcompressor:
         if Verbose:
             print('\n Number of grid points on PWL distribution: ' + str(len(self.Result['PWLX']))
                   +'\n Time required: '+'{:.3f}'.format(EndTime-StartTime)+' seconds \n '
-                  +'\n Wasserstein distance achieved: '+ str(self.SegmentStack.TotalWasserstein)
+                  +'\n Wasserstein distance achieved: '+ str(self.SegmentStack.TotalWasserstein())
                   +'\n ======== COMPRESSION FINISHED! ========')
 
 

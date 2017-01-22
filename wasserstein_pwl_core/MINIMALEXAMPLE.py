@@ -22,6 +22,8 @@ np.random.seed(123)
 #Sample = np.random.lognormal(mean = mu, sigma = sigma, size = (n,))
 Sample = XLsimulations(SampleSize = n, PoissonLambda = 2, ParetoX0 = 10, ParetoAlpha = 2.5, Deductible = 12, Limit = 10, AggregateLimit = 30)
 #Sample = [1, 1.6, 4.3, 4.6, 6, 7.1, 13, 13.4, 16, 18.8]
+#Sample = [1, 1.1, 1.2, 1.6, 4.3, 4.5, 4.6, 6, 6.1, 6.6,
+#         7.1, 13, 13.4, 16, 18.8, 22, 30, 32, 39, 40]
 #PWLapprox =  PWLcompressor(Sample, Accuracy = 0.01, AtomDetectionMinimumSampleSize = 100, RelativeAtomDetectionThreshold = 0.05, Bisection = 'Original', PlotIntermediate = False, Verbose = True)
 PWLapprox =  PWLcompressor(Sample, Accuracy = 0.01, AtomDetection = (1000, 0.015), Bisection = 'OLS', PlotIntermediate = False, Verbose = True)
 #PWLapprox =  PWLcompressor(Sample, Accuracy = 0.01, AtomDetection= True, Bisection = 'OLS', PlotIntermediate = False, Verbose = True)
