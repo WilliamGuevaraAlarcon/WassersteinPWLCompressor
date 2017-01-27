@@ -59,7 +59,6 @@ class SampleCharacteristics:
     #     assert SampleIndex > 0
     #     tVaR = self.CumSum_Sample[SampleIndex-1]/SampleIndex
     #     return self.Mean - tVaR
-
     def CumSum_Sample_m1(self,index):
         # returns self.CumSum_Sample[index - 1]
         if index == 0:
@@ -85,6 +84,80 @@ class SampleCharacteristics:
         Regression_Delta_Part2 = 6/((self.SampleSize*(Y_Right-Y_Left))**2)*self.Regression_PartialSum(SampleSet_Start, SampleSet_End)
         Delta_Regression = Regression_Delta_Part1 + Regression_Delta_Part2
         return Delta_Regression
+    #
+    # def CalculateMinWassersteinDelta(self,SampleSet_Start, SampleSet_End):
+    #     LocalMean = self.LocalMean(SampleSet_Start, SampleSet_End)
+    #     SegmentSize = SampleSet_End - SampleSet_Start + 1
+    #
+    #     Multiplier = (2 * (np.linspace(SampleSet_Start + 1 / 2, SampleSet_End + 1 / 2, SampleSet_End + 1 - SampleSet_Start) - SampleSet_Start) / (SampleSet_End + 1 - SampleSet_Start) - 1)
+    #
+    #     PossibleDeltas      = (self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean)/Multiplier
+    #     PossibleWasserstein = [np.sum(np.abs(self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean - d * Multiplier)) / self.SampleSize for d in PossibleDeltas]
+    #
+    #     # if (SegmentSize & 1):
+    #     #     midpoint = int((SegmentSize-1)/2)
+    #     #
+    #     #     ModDeltas = np.delete(PossibleDeltas, midpoint)
+    #     #     PossibleDeltas = ModDeltas
+    #     #     del PossibleWasserstein[midpoint]
+    #
+    #     MinIndex = np.nanargmin(PossibleWasserstein)
+    #     MinWasser = PossibleWasserstein[MinIndex]
+    #
+    #     MinIndex = np.argwhere(PossibleWasserstein ==  MinWasser)
+    #
+    #     DeltaMin = np.mean(np.unique(PossibleDeltas[MinIndex]))
+    #
+    #     return DeltaMin
+
+    def CalculateMinWassersteinDelta(self,SampleSet_Start, SampleSet_End):
+
+
+        LocalMean = self.LocalMean(SampleSet_Start, SampleSet_End)
+        SegmentSize = int(SampleSet_End - SampleSet_Start + 1)
+
+        Multiplier = (2 * (np.linspace(SampleSet_Start + 1 / 2, SampleSet_End + 1 / 2,
+                                       SampleSet_End + 1 - SampleSet_Start) - SampleSet_Start) / (
+                      SampleSet_End + 1 - SampleSet_Start) - 1)
+
+        def WDdiff(d):
+            return -np.sum(Multiplier * np.sign(self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean - d * Multiplier))
+
+        def WD(d):
+            return np.sum(np.abs(self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean - d * Multiplier ))
+
+
+        PossibleDeltas = (self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean) / Multiplier
+
+        if (SegmentSize & 1):
+            PossibleDeltas[(SegmentSize-1) / 2] = PossibleDeltas[0]
+
+        SortPermPossibleDeltas = np.argsort(PossibleDeltas)
+        SortedPossibleDeltas = PossibleDeltas[SortPermPossibleDeltas]
+        IndLeft = 0
+        IndRight = SegmentSize-1
+
+        while(IndRight-IndLeft) > 1:
+            mid = int((IndLeft + IndRight) / 2)
+            if WDdiff(SortedPossibleDeltas[mid]) < 0:
+                IndLeft = mid
+            else:
+                IndRight = mid
+
+        DeltaLeft  = SortedPossibleDeltas[IndLeft]
+        DeltaRight = SortedPossibleDeltas[IndRight]
+
+        WLeft = WD(DeltaLeft)
+        WRight = WD(DeltaRight)
+
+        if round(WLeft,8) == round(WRight,8):
+            DeltaMin = (DeltaLeft + DeltaRight)/2
+        elif WLeft < WRight:
+            DeltaMin = DeltaLeft
+        elif WLeft > WRight:
+            DeltaMin = DeltaRight
+
+        return DeltaMin
 
 
 

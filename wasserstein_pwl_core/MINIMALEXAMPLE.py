@@ -17,10 +17,10 @@ r = MEAN**2/(VAR-MEAN)
 
 np.random.seed(123)
 
-#Sample = np.random.normal(MEAN, np.sqrt(VAR), n)
+Sample = np.random.normal(MEAN, np.sqrt(VAR), n)
 #Sample = np.random.negative_binomial(r, p, n)
 #Sample = np.random.lognormal(mean = mu, sigma = sigma, size = (n,))
-Sample = XLsimulations(SampleSize = n, PoissonLambda = 2, ParetoX0 = 10, ParetoAlpha = 2.5, Deductible = 12, Limit = 10, AggregateLimit = 30)
+#Sample = XLsimulations(SampleSize = n, PoissonLambda = 2, ParetoX0 = 10, ParetoAlpha = 2.5, Deductible = 12, Limit = 10, AggregateLimit = 30)
 #Sample = [1, 1.6, 4.3, 4.6, 6, 7.1, 13, 13.4, 16, 18.8]
 #Sample = [1, 1.1, 1.2, 1.6, 4.3, 4.5, 4.6, 6, 6.1, 6.6,
 #         7.1, 13, 13.4, 16, 18.8, 22, 30, 32, 39, 40]
