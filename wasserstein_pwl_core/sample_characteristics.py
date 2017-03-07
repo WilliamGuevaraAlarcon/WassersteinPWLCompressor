@@ -243,8 +243,8 @@ class SampleCharacteristics:
             LocalMean        = self.LocalMean(SampleSet_Start, SampleSet_End)
 
             # calculate regression delta
-            Delta_Regression = self.CalculateRegressionDelta(SampleSet_Start, SampleSet_End)
-            #Delta_Regression = self.CalculateMinWassersteinDelta(SampleSet_Start, SampleSet_End)
+            #Delta_Regression = self.CalculateRegressionDelta(SampleSet_Start, SampleSet_End)
+            Delta_Regression = self.CalculateMinWassersteinDelta(SampleSet_Start, SampleSet_End)
 
             ######################New Bisection
             if Bisection == 'OLS':
