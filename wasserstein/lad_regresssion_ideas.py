@@ -2,8 +2,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pwl_compressor_core.pwl_distribution import PiecewiseLinearDistribution, EmpiricalDistributionFromSample
-from pwl_compressor_core.sample_characteristics import SampleCharacteristics
+from wasserstein_pwl_core.pwl_distribution import PiecewiseLinearDistribution, EmpiricalDistributionFromSample
+from wasserstein_pwl_core.sample_characteristics import SampleCharacteristics
 from scipy.integrate import quad
 
 

@@ -30,14 +30,13 @@ class SampleCharacteristics:
         assert SampleSize > 1
 
         # regression precalculations
-        IncreasingIntegers = np.linspace(0, SampleSize-1, num = SampleSize, dtype = int) # 0, 1, 2, ... , SampleSize-1
+        IncreasingIntegers = np.linspace(0, SampleSize-1, num = SampleSize) # 0, 1, 2, ... , SampleSize-1
 
         # sample regression precalculations
         CumSum_Sample           = np.cumsum(Sample)         # CumSum_Sample[k]     = Sample[0] + ... + Sample[k]
         Mean                    = np.float64(CumSum_Sample[-1]/SampleSize) # CumSum_Sample[SampleSize-1]/SampleSize = (Sample[0] + ... + Sample[SampleSize-1])/SampleSize
         Minimum                 = np.min(Sample)
         Maximum                 = np.max(Sample)
-
 
         Regression_Cumsum = np.cumsum( (IncreasingIntegers + 0.5)*Sample ) # incex starts from 0, therefore +0.5 and not -0.5
 
@@ -50,15 +49,8 @@ class SampleCharacteristics:
         self.Regression_Cumsum       = Regression_Cumsum
         self.Minimum                 = Minimum
         self.Maximum                 = Maximum
+        self.EstimatedWasserstein    = self.EstimatedWassersteinError(Sample)
 
-    # def xtVaR(self,q):
-    #     """
-    #     returns lower xtVaR_q
-    #     """
-    #     SampleIndex = round(q*self.SampleSize)
-    #     assert SampleIndex > 0
-    #     tVaR = self.CumSum_Sample[SampleIndex-1]/SampleIndex
-    #     return self.Mean - tVaR
     def CumSum_Sample_m1(self,index):
         # returns self.CumSum_Sample[index - 1]
         if index == 0:
@@ -75,62 +67,37 @@ class SampleCharacteristics:
     def LocalMean(self, SampleSet_Start, SampleSet_End):
         return (self.CumSum_Sample[SampleSet_End] - self.CumSum_Sample_m1(SampleSet_Start))/(SampleSet_End + 1 - SampleSet_Start)
 
-    #Delta methods
-    def CalculateRegressionDelta(self,SampleSet_Start, SampleSet_End):
-        LocalMean = self.LocalMean(SampleSet_Start, SampleSet_End)
-        Y_Right = (SampleSet_End+1)/self.SampleSize
-        Y_Left = SampleSet_Start/self.SampleSize
-        Regression_Delta_Part1 = -3*LocalMean*(Y_Right+Y_Left)/(Y_Right-Y_Left)
-        Regression_Delta_Part2 = 6/((self.SampleSize*(Y_Right-Y_Left))**2)*self.Regression_PartialSum(SampleSet_Start, SampleSet_End)
-        Delta_Regression = Regression_Delta_Part1 + Regression_Delta_Part2
-        return Delta_Regression
-    #
-    # def CalculateMinWassersteinDelta(self,SampleSet_Start, SampleSet_End):
-    #     LocalMean = self.LocalMean(SampleSet_Start, SampleSet_End)
-    #     SegmentSize = SampleSet_End - SampleSet_Start + 1
-    #
-    #     Multiplier = (2 * (np.linspace(SampleSet_Start + 1 / 2, SampleSet_End + 1 / 2, SampleSet_End + 1 - SampleSet_Start) - SampleSet_Start) / (SampleSet_End + 1 - SampleSet_Start) - 1)
-    #
-    #     PossibleDeltas      = (self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean)/Multiplier
-    #     PossibleWasserstein = [np.sum(np.abs(self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean - d * Multiplier)) / self.SampleSize for d in PossibleDeltas]
-    #
-    #     # if (SegmentSize & 1):
-    #     #     midpoint = int((SegmentSize-1)/2)
-    #     #
-    #     #     ModDeltas = np.delete(PossibleDeltas, midpoint)
-    #     #     PossibleDeltas = ModDeltas
-    #     #     del PossibleWasserstein[midpoint]
-    #
-    #     MinIndex = np.nanargmin(PossibleWasserstein)
-    #     MinWasser = PossibleWasserstein[MinIndex]
-    #
-    #     MinIndex = np.argwhere(PossibleWasserstein ==  MinWasser)
-    #
-    #     DeltaMin = np.mean(np.unique(PossibleDeltas[MinIndex]))
-    #
-    #     return DeltaMin
+    def EstimatedWassersteinError(self, Sample):
+        # calculates sqrt(2/pi)*\int_{-inf}^{+inf} sqrt( F_n(x)*(1-F_n(x)) ) dx
+        # for F_n empirical distribution of sample
+        empdist = np.linspace(1 / self.SampleSize, 1 - 1 / self.SampleSize, self.SampleSize - 1)
+        dx = np.diff(Sample)
+        integrand = np.sqrt(empdist * (1 - empdist))
+        integral = np.sum(integrand * dx)
+        integral *= np.sqrt(2 / (np.pi*self.SampleSize))
+        return integral
+
+    def WD(self, SampleSet_Start, SampleSet_End, Multiplier, delta):
+        return np.sum(np.abs(self.Sample[SampleSet_Start:SampleSet_End + 1] - self.LocalMean(SampleSet_Start, SampleSet_End) - delta * Multiplier ))
+
+    def WDdiff(self, SampleSet_Start, SampleSet_End, Multiplier, delta):
+        return -np.sum(Multiplier * np.sign(self.Sample[SampleSet_Start:SampleSet_End + 1] - self.LocalMean(SampleSet_Start, SampleSet_End) - delta * Multiplier))
+
+    def Multiplier(self, SampleSet_Start, SampleSet_End):
+        SegmentSize = int(SampleSet_End + 1 - SampleSet_Start)
+        return (2 * (np.linspace(SampleSet_Start + 1 / 2, SampleSet_End + 1 / 2, SegmentSize) - SampleSet_Start)/(SegmentSize) - 1)
 
     def CalculateMinWassersteinDelta(self,SampleSet_Start, SampleSet_End):
 
-
         LocalMean = self.LocalMean(SampleSet_Start, SampleSet_End)
-        SegmentSize = int(SampleSet_End - SampleSet_Start + 1)
+        SegmentSize = int(SampleSet_End + 1 - SampleSet_Start)
 
-        Multiplier = (2 * (np.linspace(SampleSet_Start + 1 / 2, SampleSet_End + 1 / 2,
-                                       SampleSet_End + 1 - SampleSet_Start) - SampleSet_Start) / (
-                      SampleSet_End + 1 - SampleSet_Start) - 1)
-
-        def WDdiff(d):
-            return -np.sum(Multiplier * np.sign(self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean - d * Multiplier))
-
-        def WD(d):
-            return np.sum(np.abs(self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean - d * Multiplier ))
-
+        Multiplier = self.Multiplier(SampleSet_Start, SampleSet_End)
 
         PossibleDeltas = (self.Sample[SampleSet_Start:SampleSet_End + 1] - LocalMean) / Multiplier
 
         if (SegmentSize & 1):
-            PossibleDeltas[(SegmentSize-1) / 2] = PossibleDeltas[0]
+            PossibleDeltas[int((SegmentSize-1) / 2)] = PossibleDeltas[0]
 
         SortPermPossibleDeltas = np.argsort(PossibleDeltas)
         SortedPossibleDeltas = PossibleDeltas[SortPermPossibleDeltas]
@@ -139,7 +106,7 @@ class SampleCharacteristics:
 
         while(IndRight-IndLeft) > 1:
             mid = int((IndLeft + IndRight) / 2)
-            if WDdiff(SortedPossibleDeltas[mid]) < 0:
+            if round(self.WDdiff(SampleSet_Start, SampleSet_End, Multiplier, SortedPossibleDeltas[mid]), 10) < 0:
                 IndLeft = mid
             else:
                 IndRight = mid
@@ -147,10 +114,10 @@ class SampleCharacteristics:
         DeltaLeft  = SortedPossibleDeltas[IndLeft]
         DeltaRight = SortedPossibleDeltas[IndRight]
 
-        WLeft = WD(DeltaLeft)
-        WRight = WD(DeltaRight)
+        WLeft = self.WD(SampleSet_Start, SampleSet_End, Multiplier, DeltaLeft)
+        WRight = self.WD(SampleSet_Start, SampleSet_End, Multiplier, DeltaRight)
 
-        if round(WLeft,8) == round(WRight,8):
+        if abs(WLeft - WRight) <= (WLeft + WRight) * 1e-8:
             DeltaMin = (DeltaLeft + DeltaRight)/2
         elif WLeft < WRight:
             DeltaMin = DeltaLeft
@@ -158,8 +125,6 @@ class SampleCharacteristics:
             DeltaMin = DeltaRight
 
         return DeltaMin
-
-
 
     #Bisection methods
     def BisectionOLS(self, SampleSet_Start, SampleSet_End, SegmentSize):
@@ -186,45 +151,14 @@ class SampleCharacteristics:
         (self.SampleSize * (Y_Right2 - Y_Left2)) ** 2) * Regression_PartialSum2
 
         Zet = self.IncreasingIntegers[SampleSet_Start + 1: SampleSet_End + 1]
-        D = (1 / self.SampleSize) * (
-        1 / 3 * (delta1alt ** 2 * (Zet - SampleSet_Start) + delta2alt ** 2 * (SampleSet_End + 1 - Zet))
-        - (mu1alt ** 2 * (Zet - SampleSet_Start) + mu2alt ** 2 * (SampleSet_End + 1 - Zet))
-        + 2 * (delta1alt * mu1alt * (Zet + SampleSet_Start) + delta2alt * mu2alt * (Zet + SampleSet_End + 1))
-        - 4 * (delta1alt * Regression_PartialSum1 / (Zet - SampleSet_Start) + delta2alt * Regression_PartialSum2 / (SampleSet_End + 1 - Zet)))
+        D = (1 / self.SampleSize) * (delta1alt * (mu1alt*(Zet + SampleSet_Start) - 2 * Regression_PartialSum1 / (Zet - SampleSet_Start))
+        + delta2alt * (mu2alt * (Zet + SampleSet_End + 1) - 2 * Regression_PartialSum2 / (SampleSet_End + 1 - Zet))
+        - mu1alt**2 * (Zet - SampleSet_Start) - mu2alt**2 * (SampleSet_End + 1 - Zet))
 
         MinIndex = np.argmin(D)
         return (SampleSet_Start + MinIndex)
 
-    def BisectionOriginal(self, SampleSet_Start, SampleSet_End, SegmentSize, LocalMean, Delta_Regression):
-        PartialSumPart = self.CumSum_Sample[SampleSet_Start:SampleSet_End + 1] - self.CumSum_Sample_m1(SampleSet_Start)
-        LowerIntegralSum = (self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[
-            SampleSet_Start] + 1)  # cumsum(np.ones(SampleSet_End - SampleSet_Start + 1))
-        MeanIntegralPart = LowerIntegralSum * LocalMean
-        NonEpsilonPart = PartialSumPart - MeanIntegralPart
-        Ineq_Middle = (
-        (self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[SampleSet_Start] + 1) *
-        (self.IncreasingIntegers[SampleSet_Start:SampleSet_End + 1] - self.IncreasingIntegers[
-            SampleSet_End]) / SegmentSize)
-        IntegralDiffWithRegressionDelta = np.abs(Delta_Regression * Ineq_Middle - NonEpsilonPart)
-
-        MaxIndex = np.argmax(IntegralDiffWithRegressionDelta)
-        return (SampleSet_Start + MaxIndex)
-
-    # def BisectionWasserstein(self, SampleSet_Start, SampleSet_End):
-    #     Zet = self.IncreasingIntegers[SampleSet_Start + 1: SampleSet_End + 1]
-    #     res = []
-    #     for z in Zet:
-    #         res.append(sum(np.abs(self.Sample[SampleSet_Start:z] -
-    #                               (self.LocalMean(SampleSet_Start, z) + self.CalculateRegressionDelta(SampleSet_Start,
-    #                                                                                                   z) * (
-    #                                2 * (z - 1 / 2 - SampleSet_Start) / (
-    #                                    z + 1 - SampleSet_Start) - 1))) / self.SampleSize))
-    #
-    #     MinIndex = np.argmin(res)
-    #
-    #     return (MinIndex + SampleSet_Start)
-
-    def FindBestSolutionLine(self, SampleSet_Start, SampleSet_End, Bisection = 'Original'):
+    def FindBestSolutionLine(self, SampleSet_Start, SampleSet_End):
 
         if (SampleSet_Start == SampleSet_End) or (self.Sample[SampleSet_Start] == self.Sample[SampleSet_End]): #subsample has size one or solution line segment represents a jump part
             # return True, 0.0, 0.0, LinearFunction(self.Sample[SampleSet_Start],0.0)
@@ -234,40 +168,26 @@ class SampleCharacteristics:
                 SampleSize              = self.SampleSize,
                 Mean                    = self.Sample[SampleSet_Start],
                 Delta_Regression        = 0.0,
-                BestBisectionPoint      = None)
+                BestBisectionPoint      = None,
+                Sample                  = self.Sample)
         else: # subsample has size larger than one and is not jump
             # StartTime = clock()
 
             # construct vectors defining the inequalities to be solved
             SegmentSize      = (SampleSet_End + 1 - SampleSet_Start)
-            LocalMean        = self.LocalMean(SampleSet_Start, SampleSet_End)
 
             # calculate regression delta
-            #Delta_Regression = self.CalculateRegressionDelta(SampleSet_Start, SampleSet_End)
             Delta_Regression = self.CalculateMinWassersteinDelta(SampleSet_Start, SampleSet_End)
-
-            ######################New Bisection
-            if Bisection == 'OLS':
-                BestBisectionPoint = self.BisectionOLS(SampleSet_Start, SampleSet_End, SegmentSize)
-
-            if Bisection == 'Original':
-                BestBisectionPoint = self.BisectionOriginal(SampleSet_Start, SampleSet_End, SegmentSize, LocalMean, Delta_Regression)
-
-            # if Bisection == 'Wasserstein_low':
-            #     BestBisectionPoint = self.BisectionWasserstein(SampleSet_Start, SampleSet_End)
-            #MinimumDifference = IntegralDiffWithRegressionDelta[MinIndex]/self.SampleSize
+            BestBisectionPoint = self.BisectionOLS(SampleSet_Start, SampleSet_End, SegmentSize)
 
             # EndTime = clock()
             # print('Time required for Analysis of sement from '+str(SampleSet_Start)+' to '+str(SampleSet_End)+': '+str(EndTime-StartTime)+' seconds')
-
-
-
 
             return Segment(
                 SampleSet_Start         = SampleSet_Start,
                 SampleSet_End           = SampleSet_End,
                 SampleSize              = self.SampleSize,
-                Mean                    = LocalMean,
+                Mean                    = self.LocalMean(SampleSet_Start, SampleSet_End),
                 Delta_Regression        = Delta_Regression,
                 BestBisectionPoint      = BestBisectionPoint,
                 Sample                  = self.Sample)

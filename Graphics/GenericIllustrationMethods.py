@@ -25,15 +25,11 @@ def BoundPlot(thisax, x, y):
 
 
 def Characteristics(Sol):
-    LoMin = Sol.Calculate_StartXFromDelta(Sol.Delta_UpperBound)
     LoReg = Sol.Calculate_StartXFromDelta(Sol.Delta_Regression)
-    LoMax = Sol.Calculate_StartXFromDelta(Sol.Delta_LowerBound)
     LoSel = Sol.Calculate_StartXFromDelta(Sol.Delta_Selected)
-    UpMin = Sol.Calculate_EndXFromDelta(Sol.Delta_LowerBound)
     UpReg = Sol.Calculate_EndXFromDelta(Sol.Delta_Regression)
-    UpMax = Sol.Calculate_EndXFromDelta(Sol.Delta_UpperBound)
     UpSel = Sol.Calculate_EndXFromDelta(Sol.Delta_Selected)
-    return dict(LoMin = LoMin, LoReg = LoReg, LoMax = LoMax, UpMin = UpMin, UpReg = UpReg, UpMax = UpMax, LoSel = LoSel, UpSel = UpSel)
+    return dict(LoReg = LoReg, UpReg = UpReg, LoSel = LoSel, UpSel = UpSel)
 
 def SetAxisBoundLineWidth(ThisAx, linewidth = 0.7):
     for side in ['top','bottom','left','right']:

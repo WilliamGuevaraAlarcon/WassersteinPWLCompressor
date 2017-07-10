@@ -13,11 +13,13 @@ class Segment:
     BestBisectionPoint      = None
 
 
-    Segment_Line_Start_Y = 0.0
-    Segment_Line_End_Y   = 0.0
-    Segment_Line_Start_X = 0.0
-    Segment_Line_End_X   = 0.0
-    WassersteinDistance  = 0.0
+    Segment_Line_Start_Y        = 0.0
+    Segment_Line_End_Y          = 0.0
+    Segment_Line_Start_X        = 0.0
+    Segment_Line_End_X          = 0.0
+    WDiscretized_i              = None
+    WassersteinDiscretized      = None
+    WassersteinExact            = None
 
     def __init__(self,
                  SampleSet_Start                = 0,
@@ -35,61 +37,42 @@ class Segment:
         self.Delta_Regression   = Delta_Regression
         self.BestBisectionPoint = BestBisectionPoint
         self.DeltaMultiplier    = (2 * (np.linspace(self.SampleSet_Start + 1 / 2, self.SampleSet_End + 1 / 2, self.SampleSet_End + 1 - self.SampleSet_Start) - self.SampleSet_Start) / (self.SampleSet_End + 1 - self.SampleSet_Start) - 1)
-        if Sample is not None:
-            self.SubSample =  Sample[self.SampleSet_Start:self.SampleSet_End + 1]
-
-        self.SetDelta(Delta_Regression, Sample)
-
-
-        #if Sample is not None:
-        #    self.SubSample      = Sample[self.SampleSet_Start:self.SampleSet_End + 1]
+        self.SubSample =  Sample[self.SampleSet_Start:self.SampleSet_End + 1]
+        self.SetDelta(Delta_Regression)
 
     def Size(self):
         return self.SampleSet_End - self.SampleSet_Start + 1
 
 
-    def SetDelta(self, Delta, Sample):
+    def SetDelta(self, Delta):
         self.Delta_Selected = max(0.0, Delta)
         self.SetPWLCoordinates()
         self.SetWasserstein()
 
     def SetWasserstein(self):
-        if self.isBisectable() == False:
-            if self.Segment_Line_Start_X == self.Segment_Line_End_X and self.Segment_Line_Start_X == self.Mean:
-                self.WassersteinDistance = 0
+        self.WDiscretized_i = np.abs(self.SubSample - self.Mean - self.Delta_Selected * self.DeltaMultiplier) / self.SampleSize
+        self.WassersteinDiscretized = np.sum(self.WDiscretized_i)
+
+    def WassersteinDis(self, Type = "Discretized"):
+        if Type == "Discretized":
+            return self.WassersteinDiscretized
+        elif Type == "Exact":
+            delta_star = self.Delta_Selected / (self.Size())
+            if delta_star == 0:
+                self.WassersteinExact = self.WassersteinDiscretized
             else:
-                raise Exception('Constant segment with no zero Wasserstein')
-        else:
-            ApproxDiff = self.SubSample - self.Mean - self.Delta_Selected * self.DeltaMultiplier
-            self.WassersteinDistance     = np.sum(np.abs(ApproxDiff)) / self.SampleSize
-
-        #Condition_X = self.Sample[SampleSet_Start:SampleSet_End] - LocalMean + Delta*((SampleSet_End + 1 + SampleSet_Start) / (SampleSet_End + 1 - SampleSet_Start))
-        #Condition_S_start = (2 * Delta * self.IncreasingIntegers[SampleSet_Start:SampleSet_End]) / (SampleSet_End + 1 - SampleSet_Start)
-        #Condition_S_end = (2 * Delta * (self.IncreasingIntegers[SampleSet_Start+1:SampleSet_End+1])) / (SampleSet_End + 1 - SampleSet_Start)
-
-
-        #a = Condition_X < Condition_S_start
-        #b = Condition_S_end < Condition_X
-
-        #re = self.Sample[SampleSet_Start + Condition_S_end < Condition_X]
-
-        #c = (Condition_S_start < Condition_X) and  (Condition_X< Condition_S_end)
-
-
-    # def WassersteinDis(self, Start, End):
-    #     Condition_X = self.Sample - mu_s + delta_s * ((z1 + z2) / sample_length)
-    #     Condition_S_start = (2 * delta_s * (i - 1)) / (n * sample_length)
-    #     Condition_S_end = (2 * delta_s * i) / (n * sample_length)
-
+                self.WassersteinExact = self.WassersteinDiscretized + np.sum(1 / 2 * (1 / self.SampleSize - self.WDiscretized_i / delta_star) * np.maximum(
+                                                       delta_star - self.SampleSize * self.WDiscretized_i, 0))
+            return self.WassersteinExact
 
     def isBisectable(self):
         # returns true if it can be bisected
         return bool(self.SampleSet_End > self.SampleSet_Start) and (self.BestBisectionPoint is not None) and (self.Delta_Regression > 0.0)
 
-    def Bisect(self, SampleStats, Bisection):
+    def Bisect(self, SampleStats):
         # BisectionPoint = int(round((self.SampleSet_Start + self.SampleSet_End)/2.0)) #alternative: take the middle!
-        LeftSegment  = SampleStats.FindBestSolutionLine(self.SampleSet_Start, self.BestBisectionPoint, Bisection)
-        RightSegment = SampleStats.FindBestSolutionLine(self.BestBisectionPoint + 1, self.SampleSet_End, Bisection)
+        LeftSegment  = SampleStats.FindBestSolutionLine(self.SampleSet_Start, self.BestBisectionPoint)
+        RightSegment = SampleStats.FindBestSolutionLine(self.BestBisectionPoint + 1, self.SampleSet_End)
 
         return [LeftSegment, RightSegment]
 

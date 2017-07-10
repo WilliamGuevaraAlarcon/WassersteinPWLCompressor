@@ -2,8 +2,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pwl_compressor_core.compressor import PWLcompressor
-from pwl_compressor_core.pwl_distribution import PiecewiseLinearDistribution
+from wasserstein_pwl_core.compressor import PWLcompressor
+from wasserstein_pwl_core.pwl_distribution import PiecewiseLinearDistribution
 
 # np.random.seed(1232121334)
 
@@ -49,7 +49,7 @@ Sample = np.random.lognormal(mean = mu, sigma = sigma, size = (SampleSize,))
 
 PWLlist = []
 for Accuracy in AccuracyList:
-    CompressedSample = PWLcompressor(Sample, Accuracy = Accuracy)
+    CompressedSample = PWLcompressor(Sample, AccuracyMode = "Relative", AccuracyParameter = Accuracy)
     pwl = PiecewiseLinearDistribution(CompressedSample.Result['PWLX'],CompressedSample.Result['PWLY'])
     PWLlist.append(pwl)
 
@@ -60,4 +60,8 @@ for Accuracy,pwl in zip(AccuracyList,PWLlist):
     wdist = WasserssteinDistance(pwl,Sample)
     print('Accuracy: '+str(Accuracy) + ' Wasserstein distance pwl vs sample: '+str(wdist))
 
+
+
+
+data_file = open("/home/william/Downloads/2008.csv.bz2")
 
